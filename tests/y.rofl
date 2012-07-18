@@ -1,0 +1,18 @@
+# Y combinator expressed in ROFL.
+#
+# Ideally we come with a scheme to prevent this from working (like using
+# a version of the lambda calculus that makes this a type error).
+
+Y(f) = recurfn(recurfn)
+where:
+    recurfn(recur) = f(recurfn0)
+    where:
+        recurfn0(arg) = (recur(recur))(arg)
+
+mkfact() = Y(fact0)
+where:
+    fact0(f) = fact1
+    where:
+        thunk1() = 1
+	thunk2() = n * f(n -1)
+        fact1(n) = iffn(n <= 0, thunk1, thunk2)

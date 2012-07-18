@@ -1,0 +1,24 @@
+# ______________________________________________________________________
+# em_noise.rofl
+#
+# We achieve large speedups here by mapping this function over a large
+# Cartesian product of inputs.
+# ______________________________________________________________________
+
+didv_with_noise(ag, Vg, ads, Vds, sigVg, sigVds, TmK) = -dxdy * Z.sum()
+where:
+    fermi_func_deriv (x, TmK) = (((-4. * kbT) ** -1.) *
+                                 (cosh(x/(2.*kbT)) ** -2.))
+    where:
+        kbT = 8.6173743e-5 * (TmK /1000.) * 1000.
+    X, Y = mesh(bounds(-5, 5 + epsilon, 0.025), bounds(-5, 5 + epsilon, 0.025))
+    X1 = -ag * (Vg + (sigVg * X))
+    Y1 = Vds + (sigVds * Y)
+    nads = 1. - ads
+    Z = (nads * fermi_func_deriv(X1 + (nads * Y1), TmK))
+    Z += ads * fermi_func_deriv(X1 + (-ads * Y1), TmK)
+    Z *= (1. /sqrt(2 * pi) ** 2 * exp(-1. * (X ** 2 + Y ** 2) / 2))
+    dxdy = xstep(X) * ystep(Y)
+
+# ______________________________________________________________________
+# End of em_noise.rofl

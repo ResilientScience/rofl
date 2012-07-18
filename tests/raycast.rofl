@@ -1,0 +1,61 @@
+# ______________________________________________________________________
+# raycast.rofl
+# ______________________________________________________________________
+
+detect_hit(V, C, r) = t
+where:
+    a = dot(V, V)
+    b = -2 * dot(V, C)
+    c = dot(C, C) - r ** 2
+    ts = [root for root in roots([a,b,c]) if ((isreal(root)) and (root >= 1.))]
+    t = inf if len(ts) < 1 else min(ts)
+
+# ______________________________________________________________________
+
+cast_ray(ray, spheres) = result
+where:
+    hits = [(detect_hit(ray, sphere[:3], sphere[3]), sphere[4])
+            for sphere in spheres]
+    minhit = min(hits)
+    result = minhit[1] if minhit[0] < inf else 0.
+
+# ______________________________________________________________________
+# Here is where the parallelism is.  Ideally, we'd want to split up
+# the computation of the data parellel apply.
+
+raycast_scene_0(dx, dy, spheres) = result
+where:
+    grid = mgrid[:dy,:dx]
+    zs = ones((1,dy,dx,1))
+    ys = linspace(1,-1,dy)[grid[0]].reshape((1,dy,dx,1))
+    xs = linspace(-1,1,dx)[grid[1]].reshape((1,dy,dx,1))
+    rays = concatenate((xs, ys, zs), 3).reshape((dy*dx,3))
+    cast_ray_(ray) = cast_ray(ray, spheres)
+    # We are using apply_along_axis to map a function over an array of
+    # arrays, this is different than the list comprehension method
+    # illustrated in the raycase_scene_1() function.
+    result = apply_along_axis(cast_ray_, 1, rays).reshape(dy, dx)
+
+# ____________________________________________________________
+
+raycast_scene_1(dx, dy, spheres) = [
+            [cast_ray_(array((x, y, 1.))) for x in linspace(-1, 1, dx)]
+            for y in linspace(1, -1, dy)
+        ]
+where:
+    cast_ray_(ray) = cast_ray(ray, spheres)
+
+# ______________________________________________________________________
+
+raycast_driver(dx, dy, sphere_count, method) = raycast_scene(dx, dy, spheres)
+where:
+    randoms = random.random((sphere_count, 4))
+    spheres = [array([randoms[i, 0] * 2.2 - 1.1,
+                      randoms[i, 1] * 2.2 - 1.1,
+                      randoms[i, 2] * 2. + 1.,
+                      randoms[i, 3],
+                      i + 1]) for i in xrange(sphere_count)]
+    raycast_scene = raycast_scene_0 if method == 0 else raycast_scene_1
+
+# ______________________________________________________________________
+# End of raycast.rofl

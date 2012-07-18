@@ -1,0 +1,128 @@
+# ______________________________________________________________________
+# n_body.rofl
+#
+# Test input of n-body equation.
+#
+# Given:
+#     X - Vector of point mass X locations.
+#     Y - Vector of point mass Y locations.
+#     VX - Vector of point mass X-axis velocities.
+#     VY - Vector of point mass Y-axis velocities.
+#     M - Vector of point masses.
+# ______________________________________________________________________
+
+nbody_step (state) = X + VX, Y + VY, VX + AX, VY + AY
+where:
+    X, Y, VX, VY, M = state
+
+    # Build some indexing arrays.
+    # mesh1[i,j] = i, hence arr1d[mesh1][i,j] = arr1d[i]
+    # mesh2[i,j] = j, hence arr1d[mesh2][i,j] = arr1d[j]
+    mesh1, mesh2 = mgrid[:len(X),:len(X)]
+
+    # Find point-to-point-wise distances along the X axis.
+    # dX[i,j] = X[j] - X[i]
+    dX = X[mesh2] - X[mesh1]
+
+    # Find point-to-point-wise distances along the Y axis.
+    # dY[i,j] = Y[j] - Y[i]
+    dY = Y[mesh2] - Y[mesh1]
+
+    # Find the squares of the point-to-point-wise distances.
+    # Dsq_[i,j] = dX[i,j] ** 2 + dY[i,j] ** 2
+    Dsq_ = dX ** 2 + dY ** 2
+
+    # Where two points are really close, set their squared distance to
+    # infinity.  This prevents division by zero in later steps, and
+    # causes those calculations to go to zero instead.
+    # Dsq[i,j] = Dsq[i,j] if abs(Dsq[i,j]) < 1e-12 else inf
+    Dsq = np_where(abs(Dsq_) > 1e-12, Dsq_, inf)
+
+    # Find the point-to-point-wise product of point masses.
+    # MM[i,j] = M[j] * M[i]
+    MM = multiply(M[mesh2], M[mesh1])
+
+    # Find the point-to-point-wise scalar force between points.
+    # F[i,j] = MM[i,j] / Dsq[i,j]
+    F = MM / Dsq
+
+    # Find the point-to-point-wise scalar acceleration.
+    # Hence A_[i,j] == the acceleration towards j for point mass i.
+    # F = ma ==> A_[i,j] = F[i,j] / M[i]
+    A = F / M[mesh1]
+
+    # Calculate the point to point distances.
+    # D[i,j] = Dsq[i,j]**0.5
+    D = sqrt(Dsq)
+
+    # Find point-to-point-wise accelerations along the X axis.
+    # AX_[i,j] = A[i,j] * (dX[i,j] / D[i,j])
+    AX_ = A * (dX / D)
+
+    # Sum X axis accelerations for each point.
+    # AX[i] = sum(AX_[i])
+    AX = array([AX_[row].sum() for row in xrange(len(X))])
+
+    # Find point-to-point-wise acceleration along the Y axis.
+    # AY_[i,j] = A[i,j] * (dY[i,j] / D[i,j])
+    AY_ = A * (dY / D)
+
+    # Sum Y axis accelerations for each point.
+    # AY[i] = sum(AY_[i])
+    AY = array([AY_[row].sum() for row in xrange(len(Y))])
+
+# ______________________________________________________________________
+
+nbody_sim (X0,         # Initial X positions of point masses.
+           Y0,         # Initial Y positions of point masses.
+           VX0,        # Initial X velocities of point masses.
+           VY0,        # Initial Y velocities of point masses.
+           M,          # Mass of each point in the simulation.
+           steps,      # Total number of steps to run the simulation.
+           check_every # Number of simulation steps to take before
+                       # checkpointing the simulation state vector.
+          ) = checkpoints
+where:
+    # Utility function to capture the mass vector, morphing the
+    # nbody_step function from a 5-tuple state vector to a 4-tuple
+    # state vector.
+
+    nbody_step_ (state) = nbody_step(state_)[:4]
+    where:
+        state_ = state[0], state[1], state[2], state[3], M
+
+    # Another utility function for doing fold plumbing.
+
+    nbody_fold_fn (itercount, states) = (
+        states + [rofl_repeat(nbody_step_, states[-1], itercount)]
+    )
+
+    timing = ([check_every] * (steps // check_every) +
+              ([] if (steps % check_every) == 0 else [steps % check_every]))
+    checkpoints = rofl_foldl(nbody_fold_fn, [(X0, Y0, VX0, VY0)], timing)
+
+# ______________________________________________________________________
+
+nbody_driver (points,     # Number of point masses.
+              steps,      # Number of time steps to simulate.
+              check_every # Number of simulation steps to take before
+                          # checkpointing.
+             ) = nbody_sim(X0, Y0, VX0, VY0, M, steps, check_every), M
+where:
+     # NOTE: Here is a good example of troublesome common
+     # sub-expression elimination.  If we were to call
+     # random.random((points,)) several times, it would be joined into
+     # a singular call.  XXX Are we to monads already?!
+
+     X0, Y0, VX0, VY0, M = random.random((5, points))
+
+     # Scale positions into 'unit cube' and velocities so everything
+     # doesn't just shoot out of the 'unit cube'.
+
+     X0 = 2. * X0 - 1.
+     Y0 = 2. * Y0 - 1.
+     VX0 = .2 * VX0 - .1
+     VY0 = .2 * VY0 - .1
+
+# ______________________________________________________________________
+# End of n_body.rofl

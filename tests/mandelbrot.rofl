@@ -1,0 +1,30 @@
+# ______________________________________________________________________
+# mandelbrot.rofl
+# ______________________________________________________________________
+
+mandelbrot_folder (ignored, accumulator) = (cs, zs_next, steps_next)
+where:
+    cs, zs, steps = accumulator
+    zs_next = zs ** 2 + cs
+    steps_next_inc = abs(zs_next) <= 2.
+    steps_next = ((steps + steps_next_inc)
+                  if (steps_next_inc.sum() > 0)
+                  else rofl_halt())
+
+# ______________________________________________________________________
+
+mandelbrot_on_array (cs, count_limit) = final_accumulator[2]
+where:
+    init_accumulator = (cs, cs, zeros(cs.shape, int))
+    final_accumulator = rofl_foldl(mandelbrot_folder, init_accumulator,
+                                   xrange(count_limit))
+
+# ______________________________________________________________________
+
+mandelbrot_driver (dx, dy) = mandelbrot_on_array(input_arr, 256)
+where:
+    yindices, xindices = mgrid[:dy,:dx]
+    input_arr = linspace(1,-1,dy)[yindices] * 1j + linspace(-2,1,dx)[xindices]
+
+# ______________________________________________________________________
+# End of mandelbrot.rofl
